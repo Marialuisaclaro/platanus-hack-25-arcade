@@ -48,11 +48,11 @@ const GRID_H = 15;
 // Tile types
 const EMPTY = 0;
 const SAND = 1;
-const WALL = 2;      // Muro café (perímetro) - NO se rompe
+const WALL = 2; // Muro café (perímetro) - NO se rompe
 const DYNAMITE = 3;
 const BANANA = 4;
 const TRANSPORT = 5;
-const ROCK = 6;      // Roca gris - SÍ explota con dinamita
+const ROCK = 6; // Roca gris - SÍ explota con dinamita
 
 // Game state
 let grid = [];
@@ -65,6 +65,7 @@ let statusText;
 let timerText;
 let scoreText;
 let livesText;
+const nameSelectorTexts = [];
 let levelTime = 0;
 let totalScore = 0;
 let levelStartTime = 0;
@@ -73,6 +74,68 @@ let lives = 3;
 let maxLevelTime = 30;
 let lastTickTime = 0;
 let lastGravityTime = 0;
+
+// Player name and leaderboard
+let playerName = "";
+const nameSelector = {
+	active: false,
+	currentName: "",
+	selectedIndex: 0,
+	maxLength: 12,
+};
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".split("");
+const alphabetButtons = [];
+const clearButton = null;
+const startButton = null;
+let nameDisplayText = null;
+let exitButton = null;
+let restartButton = null;
+
+// Leaderboard functions
+function getLeaderboard() {
+	try {
+		const data = localStorage.getItem("bananaRaiderTop10");
+		return data ? JSON.parse(data) : [];
+	} catch {
+		return [];
+	}
+}
+
+function saveLeaderboard(board) {
+	try {
+		localStorage.setItem("bananaRaiderTop10", JSON.stringify(board));
+	} catch {}
+}
+
+function addScore(name, score) {
+	const board = getLeaderboard();
+	board.push({ name, score, date: Date.now() });
+	board.sort((a, b) => b.score - a.score);
+	const top10 = board.slice(0, 10);
+	saveLeaderboard(top10);
+	return top10;
+}
+
+function generateRandomName() {
+	const coolNames = [
+		"ACE", "ALEX", "BOLT", "BUZZ", "CHIEF", "DASH", "DUKE", "EDGE",
+		"FLASH", "FOX", "HAWK", "HERO", "JACK", "JET", "KING", "LEO",
+		"MAX", "NEO", "NOVA", "PIXEL", "QUEST", "REX", "RIOT", "SAGE",
+		"SONIC", "SPIKE", "STAR", "TURBO", "VIPER", "WOLF", "ZACK", "ZERO",
+		"BLAZE", "COBRA", "CYBER", "DRAKE", "FALCON", "GHOST", "LASER",
+		"NINJA", "OMEGA", "RAID", "RAVEN", "REBEL", "ROCKY", "SHARK",
+		"STORM", "TANK", "TITAN", "VENOM", "BLADE", "NIGHT", "FROST"
+	];
+
+	const baseName = coolNames[Math.floor(Math.random() * coolNames.length)];
+	const number = Math.floor(Math.random() * 100); // 0-99
+
+	// 70% chance to add number, 30% just the name
+	if (Math.random() < 0.7) {
+		return baseName + number;
+	}
+	return baseName;
+}
 
 // Level definitions (compact format)
 const levels = [
@@ -246,8 +309,36 @@ const levels = [
 	},
 ];
 
+// Leaderboard functions
+function getLeaderboard() {
+	const stored = localStorage.getItem("bananaRaiderTop10");
+	return stored ? JSON.parse(stored) : [];
+}
+
+function saveScore(name, score) {
+	const leaderboard = getLeaderboard();
+	leaderboard.push({ name, score, date: Date.now() });
+	leaderboard.sort((a, b) => b.score - a.score);
+	const top10 = leaderboard.slice(0, 10);
+	localStorage.setItem("bananaRaiderTop10", JSON.stringify(top10));
+	return top10;
+}
+
+function showNameSelector(scene) {
+	nameSelector.active = true;
+	nameSelector.selectedIndex = 0;
+
+	// Generate random name
+	nameSelector.currentName = generateRandomName();
+}
+
 function create() {
   graphics = this.add.graphics();
+
+	// Show name selector ONLY if no player name set
+	if (playerName === "") {
+		showNameSelector(this);
+	}
 
 	// Title
 	this.add
@@ -260,104 +351,216 @@ function create() {
 		})
 		.setOrigin(0.5);
 
-	// Status bar - organized from left to right
+	// Status bar - 6 elements distributed evenly
 	const barY = 55;
-	const barSize = 20;
+	const barSize = 18;
+	const positions = [80, 220, 360, 500, 640, 760]; // 6 positions evenly distributed
 
-	// 1. LEVEL (izquierda)
-	this.add.text(50, barY, "LEVEL", {
-		fontSize: "14px",
-		fontFamily: "Arial",
-		color: "#888",
-		stroke: "#000",
-		strokeThickness: 1,
-	}).setOrigin(0.5);
-
-	statusText = this.add.text(50, barY + 20, "1", {
-		fontSize: barSize + "px",
-		fontFamily: "Arial",
-		color: "#ffcc00",
-		stroke: "#000",
-		strokeThickness: 2,
-	}).setOrigin(0.5);
-
-	// 2. SCORE
-	this.add.text(180, barY, "SCORE", {
-		fontSize: "14px",
-		fontFamily: "Arial",
-		color: "#888",
-		stroke: "#000",
-		strokeThickness: 1,
-	}).setOrigin(0.5);
-
-	scoreText = this.add.text(180, barY + 20, "0", {
-		fontSize: barSize + "px",
-		fontFamily: "Arial",
-		color: "#00ffff",
-		stroke: "#000",
-		strokeThickness: 2,
-	}).setOrigin(0.5);
-
-	// 3. TIME
-	this.add.text(400, barY, "TIME", {
-		fontSize: "14px",
-		fontFamily: "Arial",
-		color: "#888",
-		stroke: "#000",
-		strokeThickness: 1,
-  }).setOrigin(0.5);
-
-	timerText = this.add.text(400, barY + 20, "30s", {
-		fontSize: barSize + "px",
-		fontFamily: "Arial",
-		color: "#ffcc00",
-		stroke: "#000",
-		strokeThickness: 2,
-	}).setOrigin(0.5);
-
-	// 4. LIVES
-	this.add.text(620, barY, "LIVES", {
-		fontSize: "14px",
-		fontFamily: "Arial",
-		color: "#888",
-		stroke: "#000",
-		strokeThickness: 1,
-	}).setOrigin(0.5);
-
-	livesText = this.add.text(620, barY + 20, "♥♥♥", {
-		fontSize: barSize + "px",
-		fontFamily: "Arial",
-		color: "#ff0000",
-		stroke: "#000",
-		strokeThickness: 2,
-	}).setOrigin(0.5);
-
-	// 5. RESTART BUTTON
-	const restartBtn = this.add.text(750, barY + 10, "💀 RESTART", {
-		fontSize: "16px",
-		fontFamily: "Arial",
-		color: "#ffffff",
-		backgroundColor: "#990000",
-		padding: { x: 10, y: 5 },
-	}).setOrigin(0.5).setInteractive();
-
-	restartBtn.on('pointerdown', () => {
-		loseLife(this);
-	});
-
-	// Instructions at bottom
+	// 1. LEVEL
 	this.add
-		.text(400, 570, "WASD/Arrows: Move | START: Restart | [ADMIN] 0-7: Jump to level", {
-			fontSize: "14px",
+		.text(positions[0], barY, "LEVEL", {
+			fontSize: "13px",
 			fontFamily: "Arial",
-			color: "#ffcc00",
+			color: "#888",
 			stroke: "#000",
 			strokeThickness: 1,
 		})
 		.setOrigin(0.5);
 
+	statusText = this.add
+		.text(positions[0], barY + 20, "1", {
+			fontSize: barSize + "px",
+			fontFamily: "Arial",
+			color: "#ffcc00",
+			stroke: "#000",
+			strokeThickness: 2,
+		})
+		.setOrigin(0.5);
+
+	// 2. SCORE
+	this.add
+		.text(positions[1], barY, "SCORE", {
+			fontSize: "13px",
+			fontFamily: "Arial",
+			color: "#888",
+			stroke: "#000",
+			strokeThickness: 1,
+		})
+		.setOrigin(0.5);
+
+	scoreText = this.add
+		.text(positions[1], barY + 20, "0", {
+			fontSize: barSize + "px",
+			fontFamily: "Arial",
+			color: "#00ffff",
+			stroke: "#000",
+			strokeThickness: 2,
+		})
+		.setOrigin(0.5);
+
+	// 3. TIME
+	this.add
+		.text(positions[2], barY, "TIME", {
+			fontSize: "13px",
+			fontFamily: "Arial",
+			color: "#888",
+			stroke: "#000",
+			strokeThickness: 1,
+		})
+		.setOrigin(0.5);
+
+	timerText = this.add
+		.text(positions[2], barY + 20, "40s", {
+			fontSize: barSize + "px",
+			fontFamily: "Arial",
+			color: "#ffcc00",
+			stroke: "#000",
+			strokeThickness: 2,
+		})
+		.setOrigin(0.5);
+
+	// 4. LIVES
+	this.add
+		.text(positions[3], barY, "LIVES", {
+			fontSize: "13px",
+			fontFamily: "Arial",
+			color: "#888",
+			stroke: "#000",
+			strokeThickness: 1,
+		})
+		.setOrigin(0.5);
+
+	livesText = this.add
+		.text(positions[3], barY + 20, "♥♥♥", {
+			fontSize: barSize + "px",
+			fontFamily: "Arial",
+			color: "#ff0000",
+			stroke: "#000",
+			strokeThickness: 2,
+		})
+		.setOrigin(0.5);
+
+	// 5. RESTART BUTTON (lose a life)
+	restartButton = this.add
+		.text(positions[4], barY + 10, "💀", {
+			fontSize: "20px",
+			fontFamily: "Arial",
+			color: "#ffffff",
+			backgroundColor: "#990000",
+			padding: { x: 10, y: 5 },
+		})
+		.setOrigin(0.5)
+		.setInteractive();
+
+	restartButton.on("pointerdown", () => {
+		loseLife(this);
+	});
+
+	// 6. EXIT BUTTON (change name)
+	exitButton = this.add
+		.text(positions[5], barY + 10, "🚪", {
+			fontSize: "20px",
+			fontFamily: "Arial",
+			color: "#ffffff",
+			backgroundColor: "#cc6600",
+			padding: { x: 10, y: 5 },
+		})
+		.setOrigin(0.5)
+		.setInteractive();
+
+	exitButton.on("pointerdown", () => {
+		// Go back to name selector
+		level = 0;
+		totalScore = 0;
+		lives = 3;
+		gameWon = false;
+		energy = 100;
+		playerName = ""; // Reset name
+		this.scene.restart();
+	});
+
+	// Instructions at bottom
+	this.add
+		.text(
+			400,
+			570,
+			"WASD: Move | Dig sand | Push to portal | 💀: Restart | 🚪: Exit",
+			{
+				fontSize: "12px",
+				fontFamily: "Arial",
+				color: "#888",
+				stroke: "#000",
+				strokeThickness: 1,
+			},
+		)
+		.setOrigin(0.5);
+
 	this.input.keyboard.on("keydown", (event) => {
 		const key = event.key;
+
+		// NAME SELECTOR CONTROLS
+		if (nameSelector.active) {
+			// Navigate alphabet grid with WASD/Arrows
+			if (key === "w" || key === "W" || key === "ArrowUp") {
+				nameSelector.selectedIndex = Math.max(
+					0,
+					nameSelector.selectedIndex - 6,
+				);
+				playTone(this, 400, 0.05);
+				return;
+			}
+			if (key === "s" || key === "S" || key === "ArrowDown") {
+				nameSelector.selectedIndex = Math.min(
+					ALPHABET.length - 1,
+					nameSelector.selectedIndex + 6,
+				);
+				playTone(this, 400, 0.05);
+				return;
+			}
+			if (key === "a" || key === "A" || key === "ArrowLeft") {
+				nameSelector.selectedIndex = Math.max(
+					0,
+					nameSelector.selectedIndex - 1,
+				);
+				playTone(this, 500, 0.05);
+				return;
+			}
+			if (key === "d" || key === "D" || key === "ArrowRight") {
+				nameSelector.selectedIndex = Math.min(
+					ALPHABET.length - 1,
+					nameSelector.selectedIndex + 1,
+				);
+				playTone(this, 500, 0.05);
+				return;
+			}
+			// Select letter with button A (u key)
+			if (key === "u" || key === " ") {
+				if (nameSelector.currentName.length < nameSelector.maxLength) {
+					nameSelector.currentName += ALPHABET[nameSelector.selectedIndex];
+					playTone(this, 600, 0.1);
+				}
+				return;
+			}
+			// Backspace/Delete
+			if (key === "Backspace" || key === "Delete" || key === "i") {
+				if (nameSelector.currentName.length > 0) {
+					nameSelector.currentName = nameSelector.currentName.slice(0, -1);
+					playTone(this, 300, 0.1);
+				}
+				return;
+			}
+			// START to confirm
+			if (key === "Enter" || key === "1") {
+				if (nameSelector.currentName.length > 0) {
+					playerName = nameSelector.currentName;
+					nameSelector.active = false;
+					playTone(this, 800, 0.2);
+					loadLevel(level);
+				}
+				return;
+			}
+			return;
+		}
 
 		// *** ADMIN MODE: Salta directamente a un nivel (TEMPORAL - ELIMINAR DESPUÉS) ***
 		if (key >= "0" && key <= "9") {
@@ -372,23 +575,36 @@ function create() {
 			}
 		}
 
+		// EXIT - volver a selección de nombre (ESC)
+		if (key === "Escape") {
+			level = 0;
+			totalScore = 0;
+			lives = 3;
+			gameWon = false;
+			energy = 100;
+			playerName = ""; // Reset name to show selector
+			this.scene.restart();
+      return;
+    }
+
 		// Restart con START (u = botón arcade, Enter, o 1)
 		if (key === "u" || key === "Enter" || key === "1") {
 			if (lives <= 0) {
-				// Reset completo del juego - reiniciar la escena
+				// Reset del juego pero MANTENER el nombre del jugador
 				level = 0;
 				totalScore = 0;
 				lives = 3;
 				gameWon = false;
 				energy = 100;
+				// NO resetear playerName - seguir jugando con el mismo usuario
 				this.scene.restart();
 			} else if (gameWon) {
 				nextLevel(this);
 			} else {
 				resetLevel(this);
 			}
-      return;
-    }
+			return;
+		}
 
 		if (gameWon) return;
 
@@ -411,11 +627,92 @@ function create() {
 		}
 	});
 
-	loadLevel(level);
+	// Initialize alphabet buttons first (compact for 800x520 area)
+	// 6 columns, 6 rows (36 letters total)
+	const startX = 265;
+	const startY = 260;
+	const buttonSize = 40;
+	const spacing = 55;
+
+	for (let i = 0; i < ALPHABET.length; i++) {
+		const col = i % 6;
+		const row = Math.floor(i / 6);
+		const x = startX + col * spacing;
+		const y = startY + row * spacing;
+
+		const letterText = this.add
+			.text(x, y, ALPHABET[i], {
+				fontSize: "20px",
+				fontFamily: "Arial",
+				color: "#ffffff",
+				stroke: "#000",
+				strokeThickness: 2,
+			})
+			.setOrigin(0.5)
+			.setVisible(false);
+
+		alphabetButtons.push({
+			letter: ALPHABET[i],
+			x: x,
+			y: y,
+			size: buttonSize,
+			textObj: letterText,
+		});
+	}
+
+	// Create name display text
+	nameDisplayText = this.add
+		.text(400, 155, "", {
+			fontSize: "24px",
+			fontFamily: "Arial",
+			color: "#ffffff",
+			stroke: "#000",
+			strokeThickness: 2,
+		})
+		.setOrigin(0.5)
+		.setVisible(false);
+
+	// Create name selector title
+	const nameSelectorTitle = this.add
+		.text(400, 105, "ENTER YOUR NAME", {
+			fontSize: "26px",
+			fontFamily: "Arial",
+			color: "#ffcc00",
+			stroke: "#000",
+			strokeThickness: 3,
+		})
+		.setOrigin(0.5)
+		.setVisible(false);
+
+	// Create name selector instructions (more compact)
+	const nameSelectorInstructions = this.add
+		.text(
+			400,
+			220,
+			"WASD: Navigate | A: Select | B: Delete | START: Play",
+			{
+				fontSize: "11px",
+				fontFamily: "Arial",
+				color: "#ffcc00",
+				stroke: "#000",
+				strokeThickness: 1,
+			},
+		)
+		.setOrigin(0.5)
+		.setVisible(false);
+
+	// Store references to toggle visibility
+	nameDisplayText.titleText = nameSelectorTitle;
+	nameDisplayText.instructionsText = nameSelectorInstructions;
+
+	// If player already has a name, start playing directly
+	if (playerName !== "") {
+		loadLevel(level);
+	}
 
 	// Play start sound after a short delay
 	this.time.delayedCall(100, () => {
-  playTone(this, 440, 0.1);
+		playTone(this, 440, 0.1);
 	});
 }
 
@@ -475,8 +772,8 @@ function movePlayer(scene, dx, dy) {
 	// Can't walk through walls or rocks
 	if (tile === WALL || tile === ROCK) {
 		playTone(scene, 200, 0.1);
-		return;
-	}
+    return;
+  }
 
 	// Dig sand
 	if (tile === SAND) {
@@ -489,8 +786,8 @@ function movePlayer(scene, dx, dy) {
 		energy = Math.max(0, energy - 0.5);
 		if (energy === 0) {
 			loseLife(scene);
-			return;
-		}
+      return;
+    }
 
 		return;
 	}
@@ -521,8 +818,8 @@ function movePlayer(scene, dx, dy) {
 			player.x -= dx;
 			player.y -= dy;
 			loseLife(scene);
-    return;
-  }
+      return;
+		}
 
 		if (tile === BANANA && tile2 === TRANSPORT) {
 			bananasLeft--;
@@ -540,8 +837,8 @@ function movePlayer(scene, dx, dy) {
 			explode(scene, nx2, ny2);
 		}
 
-      return;
-    }
+		return;
+	}
 
 	// Move to empty space or transporter
 	if (tile === EMPTY || tile === TRANSPORT) {
@@ -556,13 +853,13 @@ function movePlayer(scene, dx, dy) {
 			return;
 		}
 
-      return;
-    }
-  }
+		return;
+	}
+}
 
 function applyGravity(scene) {
-	// Don't apply gravity if game is won
-	if (gameWon) return;
+	// Don't apply gravity if game is won or grid not initialized
+	if (gameWon || !grid || grid.length === 0) return;
 
 	// Apply gravity ONE step at a time (fall one space)
 	for (let y = GRID_H - 2; y >= 0; y--) {
@@ -664,7 +961,7 @@ function loseLife(scene) {
 
 	if (lives <= 0) {
 		gameOver(scene);
-	} else {
+    } else {
 		playTone(scene, 200, 0.3);
 
 		// Show death animation for 1 second, then restart level
@@ -680,14 +977,17 @@ function gameOver(scene) {
 	gameWon = true;
 	playTone(scene, 150, 0.5);
 
+	// Save score to leaderboard
+	const top10 = addScore(playerName, totalScore);
+
 	// Draw game over overlay covering the whole screen
 	const overlay = scene.add.graphics();
-	overlay.fillStyle(0x000000, 0.9);
+	overlay.fillStyle(0x000000, 0.95);
 	overlay.fillRect(0, 0, 800, 600);
 
 	scene.add
-		.text(400, 200, "GAME OVER", {
-			fontSize: "72px",
+		.text(400, 80, "GAME OVER", {
+			fontSize: "56px",
 			fontFamily: "Arial",
 			color: "#ff0000",
 			stroke: "#000",
@@ -697,8 +997,8 @@ function gameOver(scene) {
 		.setDepth(1000);
 
 	scene.add
-		.text(400, 300, `Final Score: ${totalScore}`, {
-			fontSize: "36px",
+		.text(400, 150, `${playerName}: ${totalScore} pts`, {
+			fontSize: "28px",
 			fontFamily: "Arial",
 			color: "#ffcc00",
 			stroke: "#000",
@@ -707,11 +1007,41 @@ function gameOver(scene) {
 		.setOrigin(0.5)
 		.setDepth(1000);
 
+	// Show TOP 10
 	scene.add
-		.text(400, 380, "Press START (1/Enter) to Restart", {
-			fontSize: "28px",
+		.text(400, 200, "═══ TOP 10 ═══", {
+			fontSize: "24px",
 			fontFamily: "Arial",
-			color: "#ffffff",
+			color: "#00ffff",
+			stroke: "#000",
+			strokeThickness: 2,
+		})
+		.setOrigin(0.5)
+		.setDepth(1000);
+
+	// Display top 10 scores
+	top10.forEach((entry, index) => {
+		const isPlayer = entry.name === playerName && entry.score === totalScore;
+		const color = isPlayer ? "#ffff00" : "#ffffff";
+		const rank = index + 1;
+
+		scene.add
+			.text(400, 235 + index * 30, `${rank}. ${entry.name} - ${entry.score}`, {
+				fontSize: "20px",
+				fontFamily: "Arial",
+				color: color,
+				stroke: "#000",
+				strokeThickness: 2,
+			})
+			.setOrigin(0.5)
+			.setDepth(1000);
+	});
+
+	scene.add
+		.text(400, 550, "START: Play Again | ESC: Change Name", {
+			fontSize: "20px",
+			fontFamily: "Arial",
+			color: "#888888",
 			stroke: "#000",
 			strokeThickness: 2,
 		})
@@ -729,41 +1059,49 @@ function nextLevel(scene) {
 		// Victory! Show completion screen
 		gameWon = true;
 
-		const overlay = scene.add.graphics();
+  const overlay = scene.add.graphics();
 		overlay.fillStyle(0x000000, 0.9);
-		overlay.fillRect(0, 0, 800, 600);
+  overlay.fillRect(0, 0, 800, 600);
 
-		scene.add.text(400, 200, "🎉 VICTORY! 🎉", {
-			fontSize: "64px",
-			fontFamily: "Arial",
-			color: "#ffcc00",
-			stroke: "#000",
-			strokeThickness: 6,
-		}).setOrigin(0.5);
+		scene.add
+			.text(400, 200, "🎉 VICTORY! 🎉", {
+				fontSize: "64px",
+				fontFamily: "Arial",
+				color: "#ffcc00",
+				stroke: "#000",
+				strokeThickness: 6,
+			})
+			.setOrigin(0.5);
 
-		scene.add.text(400, 300, `All ${levels.length} levels complete!`, {
-			fontSize: "32px",
-			fontFamily: "Arial",
-			color: "#00ff00",
-			stroke: "#000",
-			strokeThickness: 3,
-		}).setOrigin(0.5);
+		scene.add
+			.text(400, 300, `All ${levels.length} levels complete!`, {
+				fontSize: "32px",
+				fontFamily: "Arial",
+				color: "#00ff00",
+				stroke: "#000",
+				strokeThickness: 3,
+			})
+			.setOrigin(0.5);
 
-		scene.add.text(400, 370, `Final Score: ${totalScore}`, {
-			fontSize: "36px",
-			fontFamily: "Arial",
-			color: "#00ffff",
-			stroke: "#000",
-			strokeThickness: 3,
-		}).setOrigin(0.5);
+		scene.add
+			.text(400, 370, `Final Score: ${totalScore}`, {
+				fontSize: "36px",
+				fontFamily: "Arial",
+				color: "#00ffff",
+				stroke: "#000",
+				strokeThickness: 3,
+			})
+			.setOrigin(0.5);
 
-		scene.add.text(400, 480, "Press A to play again", {
-			fontSize: "24px",
-			fontFamily: "Arial",
-			color: "#ffffff",
-			stroke: "#000",
-			strokeThickness: 2,
-		}).setOrigin(0.5);
+		scene.add
+			.text(400, 480, "Press A to play again", {
+				fontSize: "24px",
+				fontFamily: "Arial",
+				color: "#ffffff",
+				stroke: "#000",
+				strokeThickness: 2,
+			})
+			.setOrigin(0.5);
 
 		// Reset for replay
 		level = 0;
@@ -782,8 +1120,54 @@ function resetLevel(scene) {
 }
 
 function update(time, delta) {
-	// Update timer if not won
-	if (!gameWon && lives > 0 && !player.isDead) {
+	// Update name selector display
+	if (nameSelector.active) {
+		// Hide game buttons during name selection
+		if (exitButton) exitButton.setVisible(false);
+		if (restartButton) restartButton.setVisible(false);
+
+		// Show title
+		if (nameDisplayText.titleText) {
+			nameDisplayText.titleText.setVisible(true);
+		}
+
+		// Show name display
+		nameDisplayText.setText(nameSelector.currentName || "_");
+		nameDisplayText.setVisible(true);
+
+		// Show instructions
+		if (nameDisplayText.instructionsText) {
+			nameDisplayText.instructionsText.setVisible(true);
+		}
+
+		// Show alphabet button letters
+		alphabetButtons.forEach((btn) => {
+			btn.textObj.setVisible(true);
+		});
+	} else {
+		// Show game buttons when playing
+		if (exitButton) exitButton.setVisible(true);
+		if (restartButton) restartButton.setVisible(true);
+
+		// Hide name selector elements
+		if (nameDisplayText.titleText) {
+			nameDisplayText.titleText.setVisible(false);
+		}
+
+		nameDisplayText.setVisible(false);
+
+		// Hide instructions
+		if (nameDisplayText.instructionsText) {
+			nameDisplayText.instructionsText.setVisible(false);
+		}
+
+		alphabetButtons.forEach((btn) => {
+			btn.textObj.setVisible(false);
+		});
+	}
+
+	// Update timer if not won and not in name selector
+	if (!gameWon && lives > 0 && !player.isDead && !nameSelector.active) {
 		levelTime = (Date.now() - levelStartTime) / 1000;
 		const timeLeft = Math.max(0, maxLevelTime - Math.floor(levelTime));
 
@@ -820,11 +1204,52 @@ function update(time, delta) {
 }
 
 function drawGame() {
-  graphics.clear();
+	graphics.clear();
+
+	// If name selector is active, draw it instead of game
+	if (nameSelector.active) {
+		// Draw background
+		graphics.fillStyle(0x1a1a2e, 1);
+		graphics.fillRect(0, 80, 800, 520);
+
+		// Draw current name display box
+		graphics.fillStyle(0x000000, 0.7);
+		graphics.fillRect(250, 140, 300, 35);
+		graphics.lineStyle(2, 0xffcc00);
+		graphics.strokeRect(250, 140, 300, 35);
+
+		// Draw alphabet buttons (6x6 grid)
+		alphabetButtons.forEach((btn, index) => {
+			const isSelected = index === nameSelector.selectedIndex;
+
+			// Button background
+			graphics.fillStyle(isSelected ? 0xffcc00 : 0x333333, 1);
+			graphics.fillRect(
+				btn.x - btn.size / 2,
+				btn.y - btn.size / 2,
+				btn.size,
+				btn.size,
+			);
+
+			// Button border
+			graphics.lineStyle(2, isSelected ? 0xffffff : 0x666666);
+			graphics.strokeRect(
+				btn.x - btn.size / 2,
+				btn.y - btn.size / 2,
+				btn.size,
+				btn.size,
+			);
+		});
+
+		return;
+	}
 
 	// Draw background
 	graphics.fillStyle(0x1a1a2e, 1);
 	graphics.fillRect(0, 80, 800, 520);
+
+	// Don't draw grid if not initialized
+	if (!grid || grid.length === 0) return;
 
 	// Draw grid (offset for title)
 	const offsetY = 80;
@@ -842,10 +1267,26 @@ function drawGame() {
 				graphics.fillStyle(0x9a7b3d, 1);
 				// Puntos fijos basados en posición
 				const seed = x * 100 + y;
-				graphics.fillCircle(px + 5 + (seed % 15), py + 8 + ((seed * 7) % 15), 2);
-				graphics.fillCircle(px + 20 + ((seed * 3) % 10), py + 5 + ((seed * 11) % 12), 2);
-				graphics.fillCircle(px + 10 + ((seed * 5) % 12), py + 25 + ((seed * 13) % 10), 2);
-				graphics.fillCircle(px + 28 + ((seed * 9) % 8), py + 18 + ((seed * 17) % 12), 2);
+				graphics.fillCircle(
+					px + 5 + (seed % 15),
+					py + 8 + ((seed * 7) % 15),
+					2,
+				);
+				graphics.fillCircle(
+					px + 20 + ((seed * 3) % 10),
+					py + 5 + ((seed * 11) % 12),
+					2,
+				);
+				graphics.fillCircle(
+					px + 10 + ((seed * 5) % 12),
+					py + 25 + ((seed * 13) % 10),
+					2,
+				);
+				graphics.fillCircle(
+					px + 28 + ((seed * 9) % 8),
+					py + 18 + ((seed * 17) % 12),
+					2,
+				);
 			} else if (tile === WALL) {
 				// Muro CAFÉ (wall) - NO se puede romper ni atravesar
 				graphics.fillStyle(0x8b6914, 1);
@@ -853,9 +1294,21 @@ function drawGame() {
 				// Textura café FIJA
 				const seed = x * 100 + y;
 				graphics.fillStyle(0xa58520, 1);
-				graphics.fillCircle(px + 7 + (seed % 12), py + 7 + ((seed * 3) % 12), 3);
-				graphics.fillCircle(px + 22 + ((seed * 7) % 10), py + 18 + ((seed * 11) % 10), 2);
-				graphics.fillCircle(px + 15 + ((seed * 13) % 8), py + 28 + ((seed * 17) % 8), 2);
+				graphics.fillCircle(
+					px + 7 + (seed % 12),
+					py + 7 + ((seed * 3) % 12),
+					3,
+				);
+				graphics.fillCircle(
+					px + 22 + ((seed * 7) % 10),
+					py + 18 + ((seed * 11) % 10),
+					2,
+				);
+				graphics.fillCircle(
+					px + 15 + ((seed * 13) % 8),
+					py + 28 + ((seed * 17) % 8),
+					2,
+				);
 				graphics.lineStyle(2, 0x6b5010);
 				graphics.strokeRect(px, py, TILE, TILE);
 			} else if (tile === ROCK) {
@@ -865,10 +1318,26 @@ function drawGame() {
 				// Textura de piedras FIJA
 				const seed = x * 100 + y;
 				graphics.fillStyle(0x999999, 1);
-				graphics.fillCircle(px + 8 + (seed % 10), py + 6 + ((seed * 3) % 10), 4);
-				graphics.fillCircle(px + 22 + ((seed * 5) % 8), py + 15 + ((seed * 7) % 10), 5);
-				graphics.fillCircle(px + 12 + ((seed * 11) % 10), py + 28 + ((seed * 13) % 8), 4);
-				graphics.fillCircle(px + 30 + ((seed * 17) % 6), py + 22 + ((seed * 19) % 8), 3);
+				graphics.fillCircle(
+					px + 8 + (seed % 10),
+					py + 6 + ((seed * 3) % 10),
+					4,
+				);
+				graphics.fillCircle(
+					px + 22 + ((seed * 5) % 8),
+					py + 15 + ((seed * 7) % 10),
+					5,
+				);
+				graphics.fillCircle(
+					px + 12 + ((seed * 11) % 10),
+					py + 28 + ((seed * 13) % 8),
+					4,
+				);
+				graphics.fillCircle(
+					px + 30 + ((seed * 17) % 6),
+					py + 22 + ((seed * 19) % 8),
+					3,
+				);
 				graphics.lineStyle(2, 0x555555);
 				graphics.strokeRect(px, py, TILE, TILE);
 			} else if (tile === DYNAMITE) {
