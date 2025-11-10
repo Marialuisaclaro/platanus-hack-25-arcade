@@ -562,19 +562,6 @@ function create() {
 			return;
 		}
 
-		// *** ADMIN MODE: Salta directamente a un nivel (TEMPORAL - ELIMINAR DESPUÉS) ***
-		if (key >= "0" && key <= "9") {
-			const targetLevel = parseInt(key);
-			if (targetLevel < levels.length) {
-				level = targetLevel;
-				lives = 3;
-				energy = 100;
-				gameWon = false;
-				loadLevel(level);
-				return;
-			}
-		}
-
 		// EXIT - volver a selección de nombre (ESC)
 		if (key === "Escape") {
 			level = 0;
