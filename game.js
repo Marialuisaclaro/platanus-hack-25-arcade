@@ -91,28 +91,14 @@ let nameDisplayText = null;
 let exitButton = null;
 let restartButton = null;
 
-// Leaderboard functions
-function getLeaderboard() {
-	try {
-		const data = localStorage.getItem("bananaRaiderTop10");
-		return data ? JSON.parse(data) : [];
-	} catch {
-		return [];
-	}
-}
-
-function saveLeaderboard(board) {
-	try {
-		localStorage.setItem("bananaRaiderTop10", JSON.stringify(board));
-	} catch {}
-}
+// In-memory leaderboard (persists during session only)
+let leaderboard = [];
 
 function addScore(name, score) {
-	const board = getLeaderboard();
-	board.push({ name, score, date: Date.now() });
-	board.sort((a, b) => b.score - a.score);
-	const top10 = board.slice(0, 10);
-	saveLeaderboard(top10);
+	leaderboard.push({ name, score, date: Date.now() });
+	leaderboard.sort((a, b) => b.score - a.score);
+	const top10 = leaderboard.slice(0, 10);
+	leaderboard = top10; // Keep only top 10
 	return top10;
 }
 
